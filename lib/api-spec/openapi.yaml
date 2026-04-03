@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CivicScan Urban Infrastructure Risk Detection API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: reports
+    description: Infrastructure risk report operations
+  - name: analyze
+    description: AI photo analysis operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,138 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /reports:
+    get:
+      operationId: getReports
+      tags: [reports]
+      summary: Get all reports
+      description: Returns all infrastructure risk reports sorted by risk_score descending
+      parameters:
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Create a new report
+      description: Submit an infrastructure risk report. Triggers AI risk scoring.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportBody"
+      responses:
+        "201":
+          description: Report created with AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          description: Validation error
+
+  /reports/summary:
+    get:
+      operationId: getReportsSummary
+      tags: [reports]
+      summary: Get summary statistics
+      description: Returns aggregated statistics for the dashboard
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportsSummary"
+
+  /reports/{id}:
+    get:
+      operationId: getReport
+      tags: [reports]
+      summary: Get a single report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "404":
+          description: Report not found
+    patch:
+      operationId: updateReportStatus
+      tags: [reports]
+      summary: Update report status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportStatusBody"
+      responses:
+        "200":
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "404":
+          description: Report not found
+
+  /analyze-photo:
+    post:
+      operationId: analyzePhoto
+      tags: [analyze]
+      summary: Analyze a photo with AI vision model
+      description: Sends a base64 image to OpenRouter vision model to extract issue_type, severity, and description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzePhotoBody"
+      responses:
+        "200":
+          description: AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzePhotoResult"
+        "400":
+          description: No image provided
+        "500":
+          description: AI analysis failed
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +170,151 @@ components:
       required:
         - status
 
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        issue_type:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        description:
+          type: string
+        location:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        status:
+          type: string
+          enum: [pending, in_progress, resolved]
+        risk_score:
+          type: number
+        priority_label:
+          type: string
+        repair_cost_range:
+          type: string
+        recommendation:
+          type: string
+        image_url:
+          type: ["string", "null"]
+        created_at:
+          type: string
+      required:
+        - id
+        - issue_type
+        - severity
+        - description
+        - location
+        - latitude
+        - longitude
+        - status
+        - risk_score
+        - priority_label
+        - repair_cost_range
+        - recommendation
+        - image_url
+        - created_at
+
+    CreateReportBody:
+      type: object
+      properties:
+        issue_type:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        description:
+          type: string
+        location:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        image_url:
+          type: ["string", "null"]
+      required:
+        - issue_type
+        - severity
+        - description
+        - location
+        - latitude
+        - longitude
+
+    UpdateReportStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, resolved]
+      required:
+        - status
+
+    ReportsSummary:
+      type: object
+      properties:
+        total_reports:
+          type: integer
+        critical_count:
+          type: integer
+        high_count:
+          type: integer
+        medium_count:
+          type: integer
+        low_count:
+          type: integer
+        avg_risk_score:
+          type: number
+        estimated_repair_cost_min:
+          type: integer
+        estimated_repair_cost_max:
+          type: integer
+        pending_count:
+          type: integer
+        in_progress_count:
+          type: integer
+        resolved_count:
+          type: integer
+      required:
+        - total_reports
+        - critical_count
+        - high_count
+        - medium_count
+        - low_count
+        - avg_risk_score
+        - estimated_repair_cost_min
+        - estimated_repair_cost_max
+        - pending_count
+        - in_progress_count
+        - resolved_count
+
+    AnalyzePhotoBody:
+      type: object
+      properties:
+        image_data:
+          type: string
+          description: Base64 encoded image data (with or without data URI prefix)
+        mime_type:
+          type: string
+          description: Image MIME type (e.g. image/jpeg)
+      required:
+        - image_data
+
+    AnalyzePhotoResult:
+      type: object
+      properties:
+        issue_type:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        description:
+          type: string
+      required:
+        - issue_type
+        - severity
+        - description
